@@ -1,0 +1,18 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Dark Background -->
+    <path
+        android:fillColor="#0D0E11"
+        android:pathData="M0,0h108v108h-108z" />
+    <!-- Blue Glow / Accent -->
+    <path
+        android:fillColor="#1A73E8"
+        android:pathData="M54,18 C34.1,18 18,34.1 18,54 C18,73.9 34.1,90 54,90 C73.9,90 90,73.9 90,54 C90,34.1 73.9,18 54,18 Z" />
+    <!-- Sparkle / Gemini Star Icon -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,32 C54,44.15 44.15,54 32,54 C44.15,54 54,63.85 54,76 C54,63.85 63.85,54 76,54 C63.85,54 54,44.15 54,32 Z" />
+</vector>

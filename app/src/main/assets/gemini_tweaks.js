@@ -8,13 +8,41 @@
 
     console.log("[GeminiDuck] Initializing tweaks...");
 
-    // 1. Auto-focus input field on chat ready
+    // 1. Auto-focus & Wklejanie udostępnionego tekstu
     function tryAutoFocus() {
-        const inputField = document.querySelector('rich-textarea, .ql-editor, textarea, [contenteditable="true"]');
+        const inputField = document.querySelector('.ql-editor, rich-textarea div[contenteditable="true"], div[contenteditable="true"], textarea');
         if (inputField) {
             inputField.focus();
         }
     }
+
+    window.insertSharedText = function(text, retries = 10) {
+        if (!text) return;
+        const editor = document.querySelector('.ql-editor, rich-textarea div[contenteditable="true"], div[contenteditable="true"], textarea');
+        if (editor) {
+            editor.focus();
+            let success = false;
+            try {
+                // Najbardziej niezawodny sposób dla edytorów typu Quill/Angular
+                success = document.execCommand('insertText', false, text);
+            } catch (e) {
+                console.error("execCommand failed", e);
+            }
+
+            if (!success) {
+                if (editor.tagName === 'TEXTAREA' || editor.tagName === 'INPUT') {
+                    editor.value = (editor.value ? editor.value + "\n" : "") + text;
+                } else {
+                    editor.innerText = (editor.innerText ? editor.innerText + "\n" : "") + text;
+                }
+                editor.dispatchEvent(new Event('input', { bubbles: true }));
+                editor.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            showToast("Wklejono udostępniony tekst do Gemini!");
+        } else if (retries > 0) {
+            setTimeout(() => window.insertSharedText(text, retries - 1), 600);
+        }
+    };
 
     // 2. Export chat to Markdown format
     window.exportChatToMarkdown = function () {

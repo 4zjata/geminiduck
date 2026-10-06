@@ -25,6 +25,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import org.json.JSONObject
 
 class MainActivity : AppCompatActivity() {
 
@@ -36,6 +37,7 @@ class MainActivity : AppCompatActivity() {
 
     private var fileUploadCallback: ValueCallback<Array<Uri>>? = null
     private var pendingPermissionRequest: PermissionRequest? = null
+    private var pendingSharedText: String? = null
 
     companion object {
         private const val GEMINI_URL = "https://gemini.google.com"
@@ -88,7 +90,55 @@ class MainActivity : AppCompatActivity() {
         setupWebView()
         setupBackNavigation()
 
+        handleSendIntent(intent)
+
         webView.loadUrl(GEMINI_URL)
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleSendIntent(intent)
+    }
+
+    private fun handleSendIntent(intent: Intent?) {
+        if (intent == null || intent.action != Intent.ACTION_SEND) return
+
+        if (intent.type?.startsWith("text/") == true) {
+            val text = intent.getStringExtra(Intent.EXTRA_TEXT)
+                ?: intent.getStringExtra(Intent.EXTRA_SUBJECT)
+            if (!text.isNullOrBlank()) {
+                pendingSharedText = text
+                injectPendingSharedText()
+            }
+        } else if (intent.type?.startsWith("image/") == true) {
+            val imageUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri
+            }
+
+            if (imageUri != null) {
+                try {
+                    val clipboard = getSystemService(CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                    val clip = android.content.ClipData.newUri(contentResolver, "Shared Image", imageUri)
+                    clipboard?.setPrimaryClip(clip)
+                    Toast.makeText(this, "Obraz skopiowany do schowka! Możesz wkleić go w czacie Gemini lub załączyć plik.", Toast.LENGTH_LONG).show()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+    }
+
+    private fun injectPendingSharedText() {
+        val text = pendingSharedText ?: return
+        if (webView.url?.contains("gemini.google.com") == true) {
+            pendingSharedText = null
+            val escapedText = JSONObject.quote(text)
+            webView.evaluateJavascript("window.insertSharedText && window.insertSharedText($escapedText);", null)
+        }
     }
 
     private fun initViews() {
@@ -164,6 +214,7 @@ class MainActivity : AppCompatActivity() {
 
                 if (url?.contains("gemini.google.com") == true) {
                     injectCustomStylesAndScripts()
+                    injectPendingSharedText()
                 }
             }
 

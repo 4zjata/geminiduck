@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">GeminiDuck</string>
+    <string name="error_offline_title">Brak połączenia z internetem</string>
+    <string name="error_offline_desc">Sprawdź połączenie Wi-Fi lub dane komórkowe i spróbuj ponownie.</string>
+    <string name="retry">Ponów</string>
+    <string name="permission_denied_mic">Wymagane jest uprawnienie do mikrofonu, aby używać wprowadzania głosowego.</string>
+</resources>

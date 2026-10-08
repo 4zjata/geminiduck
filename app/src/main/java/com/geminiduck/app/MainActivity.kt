@@ -15,9 +15,11 @@ import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import java.io.ByteArrayInputStream
 import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.Toast
@@ -46,6 +48,36 @@ class MainActivity : AppCompatActivity() {
         // Czystszy User-Agent bez sygnatur WebView ('wv', 'Version/4.0'), omijający błąd 403 Google OAuth
         private const val CHROME_MOBILE_UA =
             "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36"
+
+        // Lista domen telemetrycznych, analitycznych i reklamowych do zablokowania
+        private val TRACKER_HOSTS = setOf(
+            "google-analytics.com",
+            "www.google-analytics.com",
+            "ssl.google-analytics.com",
+            "analytics.google.com",
+            "googletagmanager.com",
+            "www.googletagmanager.com",
+            "doubleclick.net",
+            "stats.g.doubleclick.net",
+            "adservice.google.com",
+            "pagead2.googlesyndication.com"
+        )
+
+        fun isTrackerOrTelemetry(url: String, host: String): Boolean {
+            for (trackerHost in TRACKER_HOSTS) {
+                if (host == trackerHost || host.endsWith(".$trackerHost")) {
+                    return true
+                }
+            }
+            // Blokowanie żądań do kolektorów telemetrii Google Play / Analytics
+            if (host.contains("play.google.com") && url.contains("/log")) {
+                return true
+            }
+            if (url.contains("/g/collect") || url.contains("/j/collect") || url.contains("/collect?")) {
+                return true
+            }
+            return false
+        }
     }
 
     private val filePickerLauncher = registerForActivityResult(
@@ -215,6 +247,29 @@ class MainActivity : AppCompatActivity() {
                 } catch (e: Exception) {
                     false
                 }
+            }
+
+            override fun shouldInterceptRequest(
+                view: WebView?,
+                request: WebResourceRequest?
+            ): WebResourceResponse? {
+                val uri = request?.url ?: return super.shouldInterceptRequest(view, request)
+                val host = uri.host?.lowercase() ?: return super.shouldInterceptRequest(view, request)
+                val urlString = uri.toString()
+
+                if (isTrackerOrTelemetry(urlString, host)) {
+                    // Blokowanie trackera / telemetrii — zwrócenie pustej odpowiedzi 204
+                    return WebResourceResponse(
+                        "text/plain",
+                        "UTF-8",
+                        204,
+                        "No Content",
+                        emptyMap(),
+                        ByteArrayInputStream(ByteArray(0))
+                    )
+                }
+
+                return super.shouldInterceptRequest(view, request)
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {

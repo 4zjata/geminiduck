@@ -6,7 +6,15 @@
     if (window.__geminiDuckLoaded) return;
     window.__geminiDuckLoaded = true;
 
-    console.log("[GeminiDuck] Initializing tweaks...");
+    console.log("[GeminiDuck] Initializing tweaks & tracker blocker...");
+
+    // Neutralizacja skryptów telemetrycznych i analitycznych
+    try {
+        window['ga-disable-UA-*'] = true;
+        window['ga-disable-G-*'] = true;
+        window.gtag = function() {};
+        window.ga = function() {};
+    } catch (e) {}
 
     // 1. Auto-focus & Wklejanie udostępnionego tekstu
     function tryAutoFocus() {

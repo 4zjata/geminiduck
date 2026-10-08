@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
 import android.util.Base64
 import android.view.View
 import android.webkit.CookieManager
@@ -24,13 +25,13 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import androidx.core.content.FileProvider
 import org.json.JSONObject
+import java.io.File
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
-    private lateinit var swipeRefreshLayout: SwipeRefreshLayout
     private lateinit var progressBar: ProgressBar
     private lateinit var errorView: View
     private lateinit var btnRetry: Button
@@ -38,6 +39,7 @@ class MainActivity : AppCompatActivity() {
     private var fileUploadCallback: ValueCallback<Array<Uri>>? = null
     private var pendingPermissionRequest: PermissionRequest? = null
     private var pendingSharedText: String? = null
+    private var cameraPhotoUri: Uri? = null
 
     companion object {
         private const val GEMINI_URL = "https://gemini.google.com"
@@ -51,12 +53,16 @@ class MainActivity : AppCompatActivity() {
     ) { result ->
         if (result.resultCode == RESULT_OK) {
             val data = result.data
-            val uris = when {
+            val uris: Array<Uri>? = when {
                 data?.clipData != null -> {
                     val clipData = data.clipData!!
                     Array(clipData.itemCount) { i -> clipData.getItemAt(i).uri }
                 }
                 data?.data != null -> arrayOf(data.data!!)
+                cameraPhotoUri != null -> {
+                    // Zdjęcie zrobione aparatem
+                    arrayOf(cameraPhotoUri!!)
+                }
                 else -> null
             }
             fileUploadCallback?.onReceiveValue(uris)
@@ -66,16 +72,29 @@ class MainActivity : AppCompatActivity() {
         fileUploadCallback = null
     }
 
-    private val requestRecordAudioPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
-            pendingPermissionRequest?.let { request ->
-                request.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE))
+    private val requestWebPermissionsLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        pendingPermissionRequest?.let { request ->
+            val grantedResources = mutableListOf<String>()
+            val hasAudio = permissions[Manifest.permission.RECORD_AUDIO] == true ||
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+            val hasCamera = permissions[Manifest.permission.CAMERA] == true ||
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+
+            val requested = request.resources.toList()
+            if (hasAudio && requested.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE)) {
+                grantedResources.add(PermissionRequest.RESOURCE_AUDIO_CAPTURE)
             }
-        } else {
-            pendingPermissionRequest?.deny()
-            Toast.makeText(this, getString(R.string.permission_denied_mic), Toast.LENGTH_SHORT).show()
+            if (hasCamera && requested.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) {
+                grantedResources.add(PermissionRequest.RESOURCE_VIDEO_CAPTURE)
+            }
+
+            if (grantedResources.isNotEmpty()) {
+                request.grant(grantedResources.toTypedArray())
+            } else {
+                request.deny()
+            }
         }
         pendingPermissionRequest = null
     }
@@ -143,19 +162,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun initViews() {
         webView = findViewById(R.id.webView)
-        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout)
         progressBar = findViewById(R.id.progressBar)
         errorView = findViewById(R.id.errorView)
         btnRetry = findViewById(R.id.btnRetry)
-
-        swipeRefreshLayout.setOnRefreshListener {
-            webView.reload()
-        }
-
-        // SwipeRefresh tylko jeśli strona jest przewinięta na samą górę
-        webView.viewTreeObserver.addOnScrollChangedListener {
-            swipeRefreshLayout.isEnabled = (webView.scrollY == 0)
-        }
 
         btnRetry.setOnClickListener {
             errorView.visibility = View.GONE
@@ -210,7 +219,6 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                swipeRefreshLayout.isRefreshing = false
 
                 if (url?.contains("gemini.google.com") == true) {
                     injectCustomStylesAndScripts()
@@ -242,29 +250,33 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            // Obsługa mikrofonu (WebRTC / głos Gemini)
+            // Obsługa uprawnień sprzętowych WebRTC (Mikrofon i Aparat w UI strony)
             override fun onPermissionRequest(request: PermissionRequest?) {
                 if (request == null) return
-                val requestedResources = request.resources
+                val requestedResources = request.resources.toList()
+                val permissionsToAsk = mutableListOf<String>()
 
                 if (requestedResources.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE)) {
-                    val hasAudioPermission = ContextCompat.checkSelfPermission(
-                        this@MainActivity,
-                        Manifest.permission.RECORD_AUDIO
-                    ) == PackageManager.PERMISSION_GRANTED
-
-                    if (hasAudioPermission) {
-                        request.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE))
-                    } else {
-                        pendingPermissionRequest = request
-                        requestRecordAudioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                        permissionsToAsk.add(Manifest.permission.RECORD_AUDIO)
                     }
+                }
+
+                if (requestedResources.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) {
+                    if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                        permissionsToAsk.add(Manifest.permission.CAMERA)
+                    }
+                }
+
+                if (permissionsToAsk.isEmpty()) {
+                    request.grant(request.resources)
                 } else {
-                    request.deny()
+                    pendingPermissionRequest = request
+                    requestWebPermissionsLauncher.launch(permissionsToAsk.toTypedArray())
                 }
             }
 
-            // Obsługa przesyłania plików i zdjęć
+            // Obsługa wyboru plików i bezpośredniego wywołania aparatu
             override fun onShowFileChooser(
                 webView: WebView?,
                 filePathCallback: ValueCallback<Array<Uri>>?,
@@ -273,19 +285,59 @@ class MainActivity : AppCompatActivity() {
                 fileUploadCallback?.onReceiveValue(null)
                 fileUploadCallback = filePathCallback
 
-                val intent = fileChooserParams?.createIntent() ?: Intent(Intent.ACTION_GET_CONTENT).apply {
+                // Przygotuj plik i URI do wykonania zdjęcia aparatem
+                cameraPhotoUri = createCameraImageUri()
+                val takePictureIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
+                    cameraPhotoUri?.let { uri ->
+                        putExtra(MediaStore.EXTRA_OUTPUT, uri)
+                        addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                }
+
+                // Sprawdź czy strona wprost wymaga aparatu (capture="true" / isCaptureEnabled)
+                val isCapture = fileChooserParams?.isCaptureEnabled == true ||
+                        fileChooserParams?.acceptTypes?.any { it.contains("image") } == true && fileChooserParams.isCaptureEnabled
+
+                if (isCapture) {
+                    return try {
+                        filePickerLauncher.launch(takePictureIntent)
+                        true
+                    } catch (e: Exception) {
+                        fileUploadCallback = null
+                        false
+                    }
+                }
+
+                // Domyślnie utwórz selektor z opcją Aparatu oraz Galerii/Menedżera plików
+                val contentSelectionIntent = fileChooserParams?.createIntent() ?: Intent(Intent.ACTION_GET_CONTENT).apply {
                     type = "*/*"
                     addCategory(Intent.CATEGORY_OPENABLE)
                 }
 
+                val chooserIntent = Intent(Intent.ACTION_CHOOSER).apply {
+                    putExtra(Intent.EXTRA_INTENT, contentSelectionIntent)
+                    putExtra(Intent.EXTRA_TITLE, "Wybierz plik lub zrób zdjęcie")
+                    putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(takePictureIntent))
+                }
+
                 return try {
-                    filePickerLauncher.launch(intent)
+                    filePickerLauncher.launch(chooserIntent)
                     true
                 } catch (e: Exception) {
                     fileUploadCallback = null
                     false
                 }
             }
+        }
+    }
+
+    private fun createCameraImageUri(): Uri? {
+        return try {
+            val photoFile = File.createTempFile("gemini_photo_", ".jpg", cacheDir)
+            FileProvider.getUriForFile(this, "${packageName}.fileprovider", photoFile)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
         }
     }
 

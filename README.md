@@ -4,6 +4,8 @@ GeminiDuck to lekki wrapper Android WebView dla serwisu **gemini.google.com**, w
 
 Działa w 100% niezależnie od systemowej aplikacji Google (`com.google.android.googlequicksearchbox`), omija blokadę logowania Google OAuth oraz oferuje ulepszenia interfejsu i dodatkowe funkcje.
 
+📥 **Pobierz najnowszą wersję (.apk):** [GitHub Releases](https://github.com/4zjata/geminiduck/releases/latest)
+
 ---
 
 ## ✨ Kluczowe Funkcje
@@ -13,15 +15,16 @@ Działa w 100% niezależnie od systemowej aplikacji Google (`com.google.android.
    * Pozwala na bezproblemowe logowanie kontem Google bez instalacji aplikacji Google.
 2. **Czysty czarny motyw AMOLED (True Black):**
    * Podmiana domyślnego szarego motywu Google na głęboką czerń (`#000000`), idealną na ekrany OLED.
-3. **Funkcje UX i Automatyzacji:**
-   * **Auto-focus**: Kursor automatycznie ląduje w polu wpisywania wiadomości po załadowaniu czatu.
-   * **Eksport do Markdown**: Pływający przycisk (FAB) pozwalający jednym kliknięciem skopiować lub pobrać całą rozmowę jako sformatowany plik `.md`.
-   * **Ukrywanie zbędnych elementów**: Wycięte nachalne banery reklamujące Gemini Advanced.
-4. **Pełna obsługa multimodalna i sprzętowa:**
+3. **Wbudowana blokada trackerów i telemetrii:**
+   * Przechwytywanie i odrzucanie zapytań do Google Analytics, GTM, DoubleClick oraz loggerów Play na poziomie WebView (`shouldInterceptRequest`).
+   * Neutralizacja obiektów śledzących w warstwie JavaScript.
+4. **Integracja z menu Udostępnij (Android Share Sheet):**
+   * Możliwość udostępniania zaznaczonego tekstu, linków i zdjęć z innych aplikacji bezpośrednio do GeminiDuck.
+5. **Natywna obsługa sprzętowa:**
    * Obsługa mikrofonu (WebRTC / dyktowanie głosowe).
-   * Obsługa aparatu i selektora plików (analiza obrazów).
-   * Poprawna obsługa nawigacji gestem / przyciskiem wstecz.
-   * Utrwalanie ciasteczek i sesji.
+   * Pełna obsługa aparatu (zarówno przez WebRTC jak i natywną intencję aparatu `ACTION_IMAGE_CAPTURE`).
+   * Całkowicie wyłączony gest pull-to-refresh (brak przypadkowego odświeżania czatu podczas przewijania).
+   * Trwały certyfikat podpisu (`geminiduck.keystore`) gwarantujący bezproblemowe aktualizacje bez wylogowywania.
 
 ---
 
